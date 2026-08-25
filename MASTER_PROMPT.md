@@ -16,7 +16,8 @@ must remain capable of reconstructing the project's current engineering/product 
 
 Sisyphus is a minimalist Android alarm app that **requires physical walking to silence the
 alarm**. There is no snooze and no conventional stop button. The only way to silence the alarm is
-to walk a configurable number of steps.
+to walk a configurable number of steps. Since v1.1 it supports **multiple independent alarms**,
+each with its own schedule, enabled state, step requirement, and sound.
 
 Core principle:
 
@@ -44,7 +45,8 @@ The `:core` module is platform-independent. All Android specifics live behind in
 | State machine | `challenge/ChallengeStateMachine.kt` | — |
 | Step accounting | `steps/StepAccountant.kt`, `steps/StepGuard.kt` | `platform/SensorManagerStepSensor.kt` |
 | Alarm timing | `alarm/AlarmTimeCalculator.kt`, `alarm/AlarmScheduleManager.kt` | `platform/AlarmManagerScheduler.kt` |
-| Persistence | `persistence/ChallengeRepository.kt`, `persistence/SettingsRepository.kt` | `platform/SharedPrefsKeyValueStore.kt` |
+| Multi-alarm model | `alarm/Alarm.kt`, `alarm/AlarmSpec.kt`, `alarm/AlarmRecurrenceCalculator.kt` | — |
+| Persistence | `persistence/ChallengeRepository.kt`, `persistence/SettingsRepository.kt`, `persistence/AlarmRepository.kt` | `platform/SharedPrefsKeyValueStore.kt` |
 | Sound | `sound/SoundResolver.kt` | `platform/MediaPlayerAlarmPlayer.kt`, `platform/AndroidSoundAvailability.kt` |
 | Permissions/readiness | `permissions/ReadinessChecker.kt` | `platform/Support.kt` |
 | Orchestrator | `engine/SisyphusEngine.kt` | `AppGraph` wiring (`SisyphusApp.kt`) |
@@ -121,14 +123,40 @@ Invariants: `completedSteps >= 0`, `completedSteps <= requiredSteps`.
 - Reboot recovery: `BootReceiver` calls `engine.restoreAlarmOnBoot()`.
 - The alarm continues through normal Activity lifecycle interruptions and process death.
 
+### Multi-alarm scheduling (v1.1)
+
+- Each enabled `Alarm` is scheduled independently under its **alarm ID as the scheduler tag**.
+  `AlarmManagerScheduler` derives a distinct PendingIntent request code per tag and stores the
+  pending fire time per tag. The broadcast carries `alarmId`; `AlarmReceiver` forwards it to the
+  service, which routes to `engine.onAlarmFired(alarmId)`.
+- The single active challenge is associated with an alarm ID. Only one occurrence is walked at a
+  time; a second alarm firing while one is active is skipped (treated as missed).
+- Legacy single-alarm API (`configureAlarm`, no-arg `onAlarmFired`, `cancelAlarm`) is preserved for
+  backward compatibility and operates on the "primary" alarm (id `sisyphus_alarm`, Daily).
+
+### Recurrence model (v1.1)
+
+- `RepeatMode`: `ONCE`, `DAILY`, `WEEKDAYS`, `WEEKENDS`, `CUSTOM` (user-selected subset of the 7
+  weekdays via `customDays`). `ONCE` carries a `onceDate`.
+- `AlarmRecurrenceCalculator.nextOccurrenceMillis(alarm)` computes the next strictly-future
+  occurrence from the injectable `Clock` for every repeat mode.
+- **Missed occurrences are skipped, never fired late**: recurring alarms reschedule to the next
+  valid occurrence; a past `ONCE` alarm is not rescheduled.
+- Reboot (`restoreAlarmOnBoot`) reschedules every enabled alarm to its next valid occurrence and
+  recovers an in-flight/armed challenge (RESCHEDULED vs DUE).
+
 ## 6. Persistence requirements
 
-- `ChallengeRepository` persists the active challenge (all state, steps, baseline, fire time).
-  IDLE clears all challenge keys.
+- `ChallengeRepository` persists the active challenge (all state, steps, baseline, fire time,
+  alarm ID). IDLE clears all challenge keys.
 - `SettingsRepository` persists app settings: required steps, alarm hour/minute, sound selection,
-  notifications enabled.
+  notifications enabled (legacy/primary alarm flow).
+- `AlarmRepository` persists the full list of independent alarms: an index of IDs plus per-alarm
+  fields (time, repeat mode, custom days, enabled, steps, sound, once date). Survives process death
+  and reboot.
+- A v1.0 install's single alarm is migrated into the alarm list as the primary Daily alarm.
 - Corrupted / out-of-range / missing persisted state is handled gracefully (returns null / defaults).
-- Every engine mutation is persisted immediately (`persist()`).
+- Every engine mutation is persisted immediately.
 
 ## 7. Anti-dismissal behavior
 
@@ -161,18 +189,21 @@ Android permissions/manifest: `POST_NOTIFICATIONS`, `ACTIVITY_RECOGNITION`, `SCH
 
 ## 10. UI/UX principles
 
-- Screens: **Setup** (configure time, step requirement, sound), **Armed**, **Alarm**
+- Screens: **Alarm list** ("THE STONES" — each alarm shows time, repeat label, steps, sound, an
+  enabled switch, and edit/delete), **Alarm editor** ("NEW STONE"/"THE STONE" — time via native
+  picker, repeat mode, custom days, once date, step presets, sound), **Alarm**
   ("THE STONE AWAITS."), **Challenge** ("WALK." — remaining step count is the primary focus),
   **Completion** ("THE STONE HAS FALLEN.").
 - Jetpack Compose. Minimalist. The remaining step count is the primary focus during a challenge.
-- UI renders `ChallengeViewState` snapshots; never holds source-of-truth state.
+- UI renders `ChallengeViewState` + alarm-list snapshots; never holds source-of-truth state.
 - **Native Android time picker** is used for alarm time selection (no custom picker). The UI test
   helper is **mode-aware**: it must handle both 24-hour and 12-hour (AM/PM) formats because devices
   like the Samsung S25 (24-hour) expose no `android:id/am_pm_spinner`. The picker has no text fields
-  for hour/minute.
+  for hour/minute. A native `DatePickerDialog` is used for ONCE dates.
 - **Phase 11 UI implementation** (Compose): `MainActivity` + `SisyphusScreens` render the Compose
-  UI via a `ChallengeViewModel` that collects engine `ChallengeViewState` snapshots. The Activity
-  refreshes and resumes/ stops step tracking on resume/pause but is never the source of truth.
+  UI via a `ChallengeViewModel` that collects engine `ChallengeViewState` and alarm-list snapshots.
+  The Activity refreshes and resumes/ stops step tracking on resume/pause but is never the source of
+  truth.
 
 ## 11. Testing philosophy and requirements
 
@@ -202,10 +233,10 @@ Run commands (see `TESTING.md`):
 ./gradlew :app:assembleDebug           # debug APK
 ```
 
-Current v1.0 validated status: **196 unit tests (150 core JVM + 23 app Robolectric — README
-states 196 total), 9 device instrumentation tests (6 UiFlow + 3 DeviceGate), 0 failures,
-ktlint clean, build green.** Physical-device gate passed on **Samsung Galaxy S25 (SM-S721B),
-API 36**. Application ID `org.sisyphus.android`, versionCode 1, versionName 1.0.0.
+Current v1.1 validated status: **213 unit tests (190 core JVM + 23 app Robolectric), 0 failures,
+ktlint clean, build green.** v1.0 physical-device gate passed on **Samsung Galaxy S25 (SM-S721B),
+API 36**; v1.1 was validated on the Linux CI/emulator (unit + Robolectric + build) and awaits the
+physical-device gate. Application ID `org.sisyphus.android`, versionCode 1, versionName 1.0.0.
 
 ## 12. OpenCode operating rules
 
@@ -254,9 +285,41 @@ used for the implementation, not merely a summary afterward.
   persistent challenge progress, back-button protection, immediate termination, reboot recovery.
 - **Phase 10** (physical-device gate) and **Phase 11** (final UI implementation) both PASSED on the
   Samsung Galaxy S25 / API 36.
-- **Current phase: v1.1 — Multiple Alarms** (see `docs/prompts/SISYPHUS_V1.1_MULTIPLE_ALARMS.md`).
+- **Sisyphus v1.1 — Multiple Alarms** — implemented (2026-08). Multiple independent alarms with
+  IDs, enabled/disabled state, Once/Daily/Weekdays/Weekends/Custom schedules, next-occurrence
+  calculation, missed-occurrence skipping, reboot recovery, edit/reschedule, deletion, independent
+  step requirements and sounds, fresh challenge per occurrence, and no inheritance of challenge
+  progress between occurrences.
+- v1.1 validated by 213 unit/Robolectric tests (0 failures), ktlint clean, build green, and
+  emulator instrumentation. Physical-device gate for v1.1 is pending (Samsung Galaxy S25 / API 36).
 
-## 16. Prompt history
+## 16. v1.1 multi-alarm requirements (authoritative)
+
+- **Multiple independent alarms** coexist; the alarm list is persisted and survives process death
+  and reboot.
+- **Alarm IDs**: every alarm has a stable unique ID used for scheduling, editing, deletion,
+  persistence, and broadcast/notification routing.
+- **Enabled/disabled**: a disabled alarm is not scheduled and does not fire; re-enabling
+  reschedules its next occurrence.
+- **Repeat modes**: `ONCE`, `DAILY`, `WEEKDAYS`, `WEEKENDS`, `CUSTOM` (subset of the seven
+  weekdays). Repeat mode is persisted per alarm.
+- **Next-occurrence calculation**: computed from the injectable `Clock`, the time-of-day, and the
+  repeat mode's day constraints.
+- **Missed-occurrence behavior**: recurring alarms reschedule to the next future occurrence (never
+  fired late); a past `ONCE` alarm is not rescheduled; no double-firing.
+- **Reboot recovery**: all enabled alarms are restored and rescheduled for their next valid
+  occurrence; in-flight/armed challenges recover consistently.
+- **Editing/rescheduling**: editing recomputes and reschedules immediately; it does not corrupt an
+  in-progress challenge.
+- **Deletion**: cancels the pending schedule, removes persisted configuration, and clears any
+  in-progress challenge for that alarm; other alarms are unaffected.
+- **Independent steps**: each alarm owns its step requirement (`1..10000`, v1.0 preset model).
+- **Independent sounds**: each alarm owns its sound selection; the never-silent resolver fallback
+  applies per alarm.
+- **Fresh challenge per occurrence**: every firing creates a fresh challenge with a fresh step
+  baseline; progress never carries between occurrences or alarms.
+
+## 17. Prompt history
 
 Major implementation prompts are preserved in `docs/prompts/`. The v1.1 feature specification is
 recorded in `docs/prompts/SISYPHUS_V1.1_MULTIPLE_ALARMS.md`.

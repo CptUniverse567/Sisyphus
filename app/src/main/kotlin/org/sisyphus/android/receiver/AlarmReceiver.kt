@@ -11,9 +11,11 @@ class AlarmReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
+        val alarmId = intent.getStringExtra("alarmId") ?: intent.getStringExtra("tag")
         val serviceIntent =
             Intent(context, SisyphusService::class.java).apply {
                 action = SisyphusService.ACTION_ALARM_FIRED
+                putExtra(SisyphusService.EXTRA_ALARM_ID, alarmId)
             }
         ContextCompat.startForegroundService(context, serviceIntent)
     }

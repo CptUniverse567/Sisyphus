@@ -12,8 +12,10 @@ import org.sisyphus.android.platform.MediaPlayerAlarmPlayer
 import org.sisyphus.android.platform.SensorManagerStepSensor
 import org.sisyphus.android.platform.SharedPrefsKeyValueStore
 import org.sisyphus.android.platform.SystemClock
+import org.sisyphus.core.alarm.Alarm
 import org.sisyphus.core.engine.ChallengeViewState
 import org.sisyphus.core.engine.SisyphusEngine
+import org.sisyphus.core.persistence.AlarmRepository
 import org.sisyphus.core.persistence.ChallengeRepository
 import org.sisyphus.core.persistence.SettingsRepository
 import org.sisyphus.core.sound.SoundResolver
@@ -43,6 +45,7 @@ class AppGraph(context: Context) {
 
     val challengeRepository = ChallengeRepository(store)
     val settingsRepository = SettingsRepository(store)
+    val alarmRepository = AlarmRepository(store)
 
     var engine: SisyphusEngine = createEngine()
         private set
@@ -50,10 +53,14 @@ class AppGraph(context: Context) {
     private val _engineState = MutableStateFlow(engine.snapshot())
     val engineState: StateFlow<ChallengeViewState> = _engineState.asStateFlow()
 
+    private val _alarmsState = MutableStateFlow(engine.alarms())
+    val alarmsState: StateFlow<List<Alarm>> = _alarmsState.asStateFlow()
+
     fun availableActions(): Set<UiAction> = ChallengeUi(engine).availableActions()
 
     fun publishState() {
         _engineState.value = engine.snapshot()
+        _alarmsState.value = engine.alarms()
     }
 
     fun reset() {
@@ -72,5 +79,6 @@ class AppGraph(context: Context) {
             challengeRepository = challengeRepository,
             settingsRepository = settingsRepository,
             soundResolver = SoundResolver(soundAvailability),
+            alarmRepository = alarmRepository,
         )
 }

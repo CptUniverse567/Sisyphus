@@ -12,6 +12,7 @@ class ChallengeRepository(private val store: KeyValueStore) {
             store.remove(KEY_COMPLETED_STEPS)
             store.remove(KEY_SENSOR_BASELINE)
             store.remove(KEY_ALARM_FIRE_TIME)
+            store.remove(KEY_ALARM_ID)
             return
         }
         store.putString(KEY_STATE, challenge.state.name)
@@ -27,6 +28,11 @@ class ChallengeRepository(private val store: KeyValueStore) {
         } else {
             store.remove(KEY_ALARM_FIRE_TIME)
         }
+        if (challenge.alarmId != null) {
+            store.putString(KEY_ALARM_ID, challenge.alarmId)
+        } else {
+            store.remove(KEY_ALARM_ID)
+        }
     }
 
     fun load(): Challenge? {
@@ -37,12 +43,14 @@ class ChallengeRepository(private val store: KeyValueStore) {
         val completed = (store.getInt(KEY_COMPLETED_STEPS) ?: 0).coerceIn(0, required)
         val baseline = store.getLong(KEY_SENSOR_BASELINE)
         val fireTime = store.getLong(KEY_ALARM_FIRE_TIME)
+        val alarmId = store.getString(KEY_ALARM_ID)
         return Challenge(
             state = state,
             requiredSteps = required,
             completedSteps = completed,
             sensorBaseline = baseline,
             alarmFireTimeMillis = fireTime,
+            alarmId = alarmId,
         )
     }
 
@@ -52,5 +60,6 @@ class ChallengeRepository(private val store: KeyValueStore) {
         const val KEY_COMPLETED_STEPS = "challenge.completedSteps"
         const val KEY_SENSOR_BASELINE = "challenge.sensorBaseline"
         const val KEY_ALARM_FIRE_TIME = "challenge.alarmFireTime"
+        const val KEY_ALARM_ID = "challenge.alarmId"
     }
 }

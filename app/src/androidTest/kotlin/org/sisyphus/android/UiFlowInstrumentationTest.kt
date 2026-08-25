@@ -57,6 +57,9 @@ class UiFlowInstrumentationTest {
 
     @Test
     fun setupFlow_usesNativeTimePicker_noTextFields() {
+        composeRule.onNodeWithTag("addAlarm").performClick()
+        waitForTag("alarmEditorScreen")
+
         composeRule.onNodeWithTag("stepsField").performTextClearance()
         composeRule.onNodeWithTag("stepsField").performTextInput("500")
 
@@ -69,16 +72,19 @@ class UiFlowInstrumentationTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag("saveAlarm").performClick()
-        waitForTag("armedScreen")
-        assertEquals(500, app.graph.engine.snapshot().requiredSteps)
-        assertEquals(6, app.graph.engine.currentSettings().alarmHour)
-        assertEquals(0, app.graph.engine.currentSettings().alarmMinute)
+        waitForTag("alarmListScreen")
+        assertEquals(1, app.graph.engine.alarms().size)
+        assertEquals(500, app.graph.engine.alarms()[0].requiredSteps)
+        assertEquals(6, app.graph.engine.alarms()[0].hour)
+        assertEquals(0, app.graph.engine.alarms()[0].minute)
     }
 
     @Test
     fun setupFlow_acceptsAChosenTime() {
         val is24Hour = DateFormat.is24HourFormat(InstrumentationRegistry.getInstrumentation().targetContext)
         val inputHour = if (is24Hour) "23" else "11"
+        composeRule.onNodeWithTag("addAlarm").performClick()
+        waitForTag("alarmEditorScreen")
         composeRule.onNodeWithTag("timeField").performClick()
         device.wait(Until.hasObject(By.text("OK")), 3_000)
         setTimeInPicker(inputHour, "59", amPm = "PM")
@@ -86,9 +92,9 @@ class UiFlowInstrumentationTest {
         composeRule.onNodeWithTag("timeFieldLabel", useUnmergedTree = true).assertTextEquals("11:59 PM")
 
         composeRule.onNodeWithTag("saveAlarm").performClick()
-        waitForTag("armedScreen")
-        assertEquals(23, app.graph.engine.currentSettings().alarmHour)
-        assertEquals(59, app.graph.engine.currentSettings().alarmMinute)
+        waitForTag("alarmListScreen")
+        assertEquals(23, app.graph.engine.alarms()[0].hour)
+        assertEquals(59, app.graph.engine.alarms()[0].minute)
     }
 
     @Test

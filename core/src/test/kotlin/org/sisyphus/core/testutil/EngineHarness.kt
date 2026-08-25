@@ -1,6 +1,7 @@
 package org.sisyphus.core.testutil
 
 import org.sisyphus.core.engine.SisyphusEngine
+import org.sisyphus.core.persistence.AlarmRepository
 import org.sisyphus.core.persistence.ChallengeRepository
 import org.sisyphus.core.persistence.SettingsRepository
 import org.sisyphus.core.sound.SoundResolver
@@ -22,6 +23,7 @@ class EngineHarness(
 
     val challengeRepository = ChallengeRepository(store)
     val settingsRepository = SettingsRepository(store)
+    val alarmRepository = AlarmRepository(store)
     private val guardValue = guard
 
     val engine =
@@ -34,6 +36,7 @@ class EngineHarness(
             challengeRepository = challengeRepository,
             settingsRepository = settingsRepository,
             soundResolver = SoundResolver(soundAvailability),
+            alarmRepository = alarmRepository,
             stepGuard = guardValue,
         )
 
@@ -57,6 +60,7 @@ class EngineHarness(
             challengeRepository = challengeRepository,
             settingsRepository = settingsRepository,
             soundResolver = SoundResolver(soundAvailability),
+            alarmRepository = alarmRepository,
             stepGuard = guardValue,
         )
 }

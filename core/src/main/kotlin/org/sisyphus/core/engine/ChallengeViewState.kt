@@ -10,6 +10,7 @@ data class ChallengeViewState(
     val remainingSteps: Int,
     val isActive: Boolean,
     val alarmFireTimeMillis: Long?,
+    val alarmId: String? = null,
 ) {
     val isChallengeRunning: Boolean get() = isActive
 
@@ -24,6 +25,7 @@ data class ChallengeViewState(
                     challenge.state == ChallengeState.CHALLENGE_ACTIVE ||
                         challenge.state == ChallengeState.RINGING,
                 alarmFireTimeMillis = challenge.alarmFireTimeMillis,
+                alarmId = challenge.alarmId,
             )
     }
 }

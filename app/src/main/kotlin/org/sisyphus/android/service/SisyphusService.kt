@@ -23,7 +23,7 @@ class SisyphusService : Service() {
         startId: Int,
     ): Int {
         when (intent?.action) {
-            ACTION_ALARM_FIRED -> fireAlarm()
+            ACTION_ALARM_FIRED -> fireAlarm(intent)
             ACTION_START_CHALLENGE -> {
                 ensureForeground()
                 startSensorIfChallengeActive()
@@ -48,10 +48,16 @@ class SisyphusService : Service() {
         return START_STICKY
     }
 
-    private fun fireAlarm() {
+    private fun fireAlarm(intent: Intent) {
         val graph = app.graph
+        val alarmId = intent?.getStringExtra(EXTRA_ALARM_ID)
         when (graph.engine.snapshot().state) {
-            ChallengeState.ARMED -> graph.engine.onAlarmFired()
+            ChallengeState.ARMED ->
+                if (alarmId != null) {
+                    graph.engine.onAlarmFired(alarmId)
+                } else {
+                    graph.engine.onAlarmFired()
+                }
             ChallengeState.RINGING, ChallengeState.CHALLENGE_ACTIVE ->
                 graph.engine.resumeChallengeSound()
             else -> {
@@ -129,6 +135,7 @@ class SisyphusService : Service() {
         const val ACTION_START_SENSOR = "org.sisyphus.android.action.START_SENSOR"
         const val ACTION_STOP_SENSOR = "org.sisyphus.android.action.STOP_SENSOR"
         const val ACTION_RESUME = "org.sisyphus.android.action.RESUME"
+        const val EXTRA_ALARM_ID = "alarmId"
         const val NOTIFICATION_ID = 1
         const val FOREGROUND_CHANNEL = "sisyphus_service"
 

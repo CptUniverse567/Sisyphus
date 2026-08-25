@@ -8,7 +8,19 @@ It is deliberately simple: when the alarm rings, there is no snooze and no conve
 
 ## Features
 
-* Single alarm configuration
+* Multiple independent alarms (v1.1)
+* Per-alarm enabled/disabled state (v1.1)
+* Per-alarm repeat schedules (v1.1):
+
+  * **Once**
+  * **Daily**
+  * **Weekdays**
+  * **Weekends**
+  * **Custom** weekday subset
+* Per-alarm step requirements and sounds (v1.1)
+* Next-occurrence calculation and missed-occurrence skipping (v1.1)
+* Alarm editing, rescheduling, and deletion (v1.1)
+* Fresh challenge per occurrence; no progress carries between occurrences (v1.1)
 * Native Android time picker
 * Configurable step requirement
 * Step presets:
@@ -51,13 +63,15 @@ The stone eventually falls.
 
 ## Screens
 
-### Setup
+### Alarms
 
-Configure the alarm time, step requirement, and alarm sound.
+The list of independent alarms ("THE STONES"). Each alarm shows its time, repeat schedule, step
+requirement, sound, an enabled switch, and edit/delete controls.
 
-### Armed
+### Alarm Editor
 
-The alarm is scheduled and waiting.
+Configure a new or existing alarm: time (native Android time picker), repeat mode (Once, Daily,
+Weekdays, Weekends, or a custom weekday subset), step requirement, and alarm sound.
 
 ### Alarm
 
@@ -216,9 +230,11 @@ app/build/outputs/apk/release/app-release.apk
 
 ## Project Status
 
-**Sisyphus v1.0.0**
+**Sisyphus v1.1.0**
 
-The MVP core functionality and physical-device validation are complete.
+The v1.1 release adds multiple independent alarms with per-alarm schedules, enabled state, step
+requirements, and sounds. The validated v1.0 challenge engine and anti-dismissal behavior are
+preserved.
 
 The current release focuses on doing one thing well:
 

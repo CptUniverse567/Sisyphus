@@ -4,27 +4,18 @@
 
 Everything below that can run without a physical device runs automatically in this repository.
 
-## Release candidate — Sisyphus v1.0.0
+## Release candidate — Sisyphus v1.1.0
 
-**Sisyphus v1.0.0** — release candidate.
+**Sisyphus v1.1.0** — multiple independent alarms, release candidate (2026-08).
 
-- Physical validation: **Samsung Galaxy S25 (SM-S721B) / Android API 36**
-- Unit tests: **173/173 PASS** (150 core JVM + 23 app Robolectric)
-- Instrumentation: **9/9 PASS** (6 UiFlow + 3 DeviceGate)
+- Unit tests: **213/213 PASS** (190 core JVM + 23 app Robolectric)
 - ktlint: **PASS**
 - Gradle build: **PASS**
-- Phase 10: **PASSED**
-- Phase 11: **PASSED**
-- Release candidate: **READY**
+- Instrumentation (emulator): **UiFlow 6/6, DeviceGate 3/3** (sensor-dependent tests skipped on
+  emulator via `assumeTrue`; the two setup-flow tests exercise the new alarm editor)
+- Physical-device gate: **pending for v1.1** (prior v1.0 gate: Samsung Galaxy S25 / API 36)
 
-Signed release artifact (built locally, signed with the personal Sisyphus key, credentials
-stored only in local `keystore.properties` which is git-ignored):
-
-```
-app\build\outputs\apk\release\app-release.apk
-```
-
-Application ID `org.sisyphus.android`, `versionCode 1`, `versionName 1.0.0`.
+> v1.0 release candidate — 173/173 unit tests (150 core + 23 app), 9/9 instrumentation on device.
 
 ## How to run everything
 
@@ -39,7 +30,7 @@ Application ID `org.sisyphus.android`, `versionCode 1`, `versionName 1.0.0`.
 .\gradlew.bat :app:assembleDebugAndroidTest  # instrumentation APK (compile check)
 ```
 
-Current status: **173 unit tests (150 core JVM + 23 app Robolectric), 9 device instrumentation tests, 0 failures, ktlint clean, build green.**
+Current status: **213 unit tests (190 core JVM + 23 app Robolectric), 0 failures, ktlint clean, build green.**
 
 > **Phase 10 — physical-device gate: PASSED (accepted 2026-08-11).**
 > Device: **Samsung Galaxy S25 (SM-S721B), API 36**, real step sensor.
@@ -171,6 +162,23 @@ duplicate events, corrupted / missing persisted state, missing custom sound, per
 revocation, reboot recovery, alarm cancellation while inactive, attempted duplicate creation,
 completion under simultaneous lifecycle events. Each asserts recovery to a valid state.
 
+### Phase 12 — v1.1 Multiple alarms
+| Requirement | Test |
+|---|---|
+| Next-occurrence calculation for every repeat mode | `AlarmRecurrenceCalculatorTest` |
+| Multiple alarms coexist independently | `MultiAlarmEngineTest` |
+| Enabled/disabled scheduling per alarm | `MultiAlarmEngineTest` |
+| Per-alarm scheduling tags / unique request codes | `MultiAlarmEngineTest`, `AlarmManagerSchedulerTest` |
+| Editing reschedules; deletion cleans only that alarm | `MultiAlarmEngineTest` |
+| Independent step requirements and sounds | `MultiAlarmEngineTest` |
+| Fresh challenge per occurrence, no cross-occurrence progress | `MultiAlarmEngineTest` |
+| Challenge routing by alarm ID; skip on second firing | `MultiAlarmEngineTest` |
+| Missed occurrences skipped, never fired late | `MultiAlarmEngineTest` |
+| Reboot recovery reschedules all enabled alarms | `MultiAlarmEngineTest` |
+| Alarm list + challenge survive process death | `MultiAlarmEngineTest`, `AlarmRepositoryTest` |
+| AlarmRepository persistence round-trip | `AlarmRepositoryTest` |
+| Legacy single-alarm API preserved | `MultiAlarmEngineTest`, `EngineAlarmSchedulingTest`, `UiFlowTest` |
+
 ## Android module status
 
 The `:app` module is fully implemented and compiles to a debug APK:
@@ -187,13 +195,14 @@ The `:app` module is fully implemented and compiles to a debug APK:
 
 ```text
 BUILD: PASS                    assembleDebug + assembleDebugAndroidTest
-UNIT TESTS: PASS               196/196
+UNIT TESTS: PASS               213/213 (190 core + 23 app)
 LINT/STATIC ANALYSIS: PASS     ktlintCheck
 CORE STATE MACHINE: VERIFIED   StateMachineTest + ChallengeCalculationTest
-PERSISTENCE: VERIFIED          PersistenceTest
-ALARM LOGIC: VERIFIED          AlarmScheduleTest
+PERSISTENCE: VERIFIED          PersistenceTest + AlarmRepositoryTest
+ALARM LOGIC: VERIFIED          AlarmScheduleTest + AlarmRecurrenceCalculatorTest
+MULTI-ALARM: VERIFIED          MultiAlarmEngineTest
 STEP ACCOUNTING: VERIFIED      StepAccountingTest + PreDeviceFailureInjectionTest
-PHYSICAL DEVICE GATE: PASSED   Samsung Galaxy S25 (SM-S721B), API 36 — see below
+PHYSICAL DEVICE GATE: PENDING  v1.1 — prior v1.0 gate passed on Samsung Galaxy S25, API 36
 ```
 
 ## Phase 10 — Physical device gate (PASSED 2026-08-11)

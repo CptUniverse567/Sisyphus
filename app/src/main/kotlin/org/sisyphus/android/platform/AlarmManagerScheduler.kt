@@ -12,6 +12,9 @@ class AlarmManagerScheduler(
     private val context: Context,
     private val store: SharedPrefsKeyValueStore,
 ) : AlarmScheduler {
+    private val pendingByTag = mutableMapOf<String, Long>()
+    private var lastTag: String? = null
+
     override fun schedule(
         fireAtMillis: Long,
         tag: String,
@@ -32,33 +35,47 @@ class AlarmManagerScheduler(
         }.onFailure {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAtMillis, pending)
         }
-        store.putLong(KEY_NEXT_FIRE, fireAtMillis)
+        pendingByTag[tag] = fireAtMillis
+        lastTag = tag
+        store.putLong(keyFor(tag), fireAtMillis)
     }
 
     override fun cancel(tag: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.cancel(pendingIntent(tag))
-        store.remove(KEY_NEXT_FIRE)
+        pendingByTag.remove(tag)
+        if (lastTag == tag) lastTag = null
+        store.remove(keyFor(tag))
     }
 
-    override fun pendingFireAtMillis(): Long? = store.getLong(KEY_NEXT_FIRE)
+    override fun pendingFireAtMillis(): Long? = lastTag?.let { pendingByTag[it] }
+
+    private fun keyFor(tag: String) = "$KEY_NEXT_FIRE.$tag"
 
     private fun pendingIntent(tag: String): PendingIntent {
         val intent =
             Intent(context, AlarmReceiver::class.java).apply {
                 action = "org.sisyphus.android.ALARM"
                 putExtra("tag", tag)
+                putExtra("alarmId", tag)
             }
         return PendingIntent.getBroadcast(
             context,
-            REQUEST_CODE,
+            requestCodeFor(tag),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
 
+    private fun requestCodeFor(tag: String): Int {
+        // Stable, distinct request code per alarm tag so multiple alarms can coexist.
+        val base = REQUEST_CODE_BASE + (tag.hashCode() % REQUEST_CODE_SPAN)
+        return if (base < 0) base + REQUEST_CODE_SPAN else base
+    }
+
     companion object {
-        const val REQUEST_CODE = 1001
+        const val REQUEST_CODE_BASE = 1001
+        const val REQUEST_CODE_SPAN = 1_000_000
         const val KEY_NEXT_FIRE = "alarm.nextFire"
     }
 }

@@ -158,3 +158,27 @@ Repeat mode is persisted per alarm.
   editing/rescheduling, alarm deletion, independent step requirements, independent sounds, fresh
   challenge per occurrence, no inheritance of challenge progress between occurrences).
 - README / TESTING.md updated to reflect the new feature set where applicable.
+
+---
+
+## 18. Implementation notes (accepted deviations)
+
+The implementation was completed against this specification. The following clarifications were
+established during implementation and are part of the accepted architecture:
+
+- **Single active challenge**: the state machine owns one active occurrence at a time (the alarm
+  currently ringing / being walked). Multiple alarms are scheduled independently, but only one can
+  be walked at a time; a second alarm firing while one is active is skipped (treated as missed).
+- **Legacy single-alarm API preserved**: `SisyphusEngine` keeps `configureAlarm`,
+  no-arg `onAlarmFired`, `cancelAlarm`, `currentSettings`, and `selectSound` operating on the
+  primary Daily alarm (id `sisyphus_alarm`) so all validated v1.0 behavior and tests remain intact.
+  New multi-alarm operations (`addAlarm`, `updateAlarm`, `setAlarmEnabled`, `deleteAlarm`,
+  `onAlarmFired(alarmId)`) are added alongside.
+- **Per-alarm scheduling**: each enabled alarm is scheduled under its alarm ID as the
+  `AlarmScheduler` tag; `AlarmManagerScheduler` derives a distinct PendingIntent request code per
+  tag and the broadcast carries `alarmId`.
+- **Persistence**: `AlarmRepository` stores the alarm list (ID index + per-alarm fields);
+  `Challenge` gained an `alarmId`; v1.0 settings are migrated into the primary Daily alarm.
+- **UI**: the single setup/armed screens were replaced by an alarm-list screen + alarm editor
+  (native TimePickerDialog and DatePickerDialog preserved). Challenge, alarm, and completion
+  screens are unchanged.

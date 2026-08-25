@@ -6,6 +6,7 @@ data class Challenge(
     val completedSteps: Int = 0,
     val sensorBaseline: Long? = null,
     val alarmFireTimeMillis: Long? = null,
+    val alarmId: String? = null,
 ) {
     init {
         require(completedSteps >= 0) { "completedSteps cannot be negative: $completedSteps" }

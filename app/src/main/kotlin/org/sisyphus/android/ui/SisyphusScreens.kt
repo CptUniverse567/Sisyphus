@@ -28,19 +28,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -58,14 +63,19 @@ import androidx.compose.ui.unit.sp
 import org.sisyphus.android.platform.ExactAlarmSupport
 import org.sisyphus.android.platform.FullScreenIntentSupport
 import org.sisyphus.android.platform.NotificationSupport
-import org.sisyphus.android.platform.PermissionFlow
 import org.sisyphus.android.platform.SensorSupport
+import org.sisyphus.core.alarm.Alarm
+import org.sisyphus.core.alarm.AlarmSpec
 import org.sisyphus.core.challenge.ChallengeState
 import org.sisyphus.core.challenge.StepPreset
 import org.sisyphus.core.engine.ChallengeViewState
 import org.sisyphus.core.permissions.ReadinessChecker
 import org.sisyphus.core.permissions.ReadinessRequirement
 import org.sisyphus.core.settings.SoundSelection
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.ZoneId
+import org.sisyphus.core.alarm.RepeatMode as AlarmRepeatMode
 
 @Composable
 fun sisyphusUi(
@@ -85,7 +95,7 @@ fun sisyphusUi(
         ) {
             Crossfade(targetState = state.state, label = "stateTransition") { currentState ->
                 when (currentState) {
-                    ChallengeState.IDLE -> setupScreen(ui)
+                    ChallengeState.IDLE -> alarmListScreen(ui)
                     ChallengeState.ARMED -> armedScreen(ui, state)
                     ChallengeState.RINGING -> alarmScreen(ui)
                     ChallengeState.CHALLENGE_ACTIVE -> challengeScreen(state)
@@ -110,29 +120,169 @@ private fun sectionHeader(title: String) {
 }
 
 @Composable
-private fun setupScreen(ui: ChallengeViewModel) {
-    val context = LocalContext.current
-    var steps by rememberSaveable { mutableStateOf(StepPreset.LIGHT.steps.toString()) }
-    var hour by rememberSaveable { mutableStateOf(ui.settings.alarmHour) }
-    var minute by rememberSaveable { mutableStateOf(ui.settings.alarmMinute) }
-    var soundLabel by remember { mutableStateOf(SoundOption.BUNDLED) }
-    var customUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+private fun appHeader() {
+    Text(
+        "SISYPHUS",
+        style =
+            MaterialTheme.typography.headlineLarge.copy(
+                letterSpacing = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+            ),
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "NO ESCAPE. WALK.",
+        style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 4.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(24.dp))
+}
 
-    val notificationPermissionLauncher =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts.RequestPermission(),
-        ) { _ -> ui.refresh() }
+@Composable
+private fun alarmListScreen(ui: ChallengeViewModel) {
+    val alarms by ui.alarmsState.collectAsState()
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showEditor by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            !NotificationSupport.areEnabled(context) &&
-            !PermissionFlow.notificationsAlreadyRequested(context)
+    val editingAlarm = editingId?.let { id -> alarms.firstOrNull { it.id == id } }
+
+    if (showEditor) {
+        key(editingId ?: "new") {
+            alarmEditorScreen(
+                ui = ui,
+                existing = editingAlarm,
+                onDone = {
+                    showEditor = false
+                    editingId = null
+                },
+            )
+        }
+        return
+    }
+
+    Column(
+        modifier =
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp)
+                .testTag("alarmListScreen"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        appHeader()
+        permissionSetupCard(ui)
+        Spacer(Modifier.height(24.dp))
+        sectionHeader("THE STONES")
+        Spacer(Modifier.height(12.dp))
+
+        if (alarms.isEmpty()) {
+            Text(
+                "No alarms. Add a stone to begin.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("emptyAlarmList"),
+            )
+            Spacer(Modifier.height(12.dp))
+        } else {
+            alarms.forEach { alarm ->
+                alarmRow(
+                    alarm = alarm,
+                    onToggle = { enabled -> ui.setAlarmEnabled(alarm.id, enabled) },
+                    onEdit = {
+                        editingId = alarm.id
+                        showEditor = true
+                    },
+                    onDelete = { ui.deleteAlarm(alarm.id) },
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = {
+                editingId = null
+                showEditor = true
+            },
+            modifier = Modifier.testTag("addAlarm"),
         ) {
-            PermissionFlow.markNotificationsRequested(context)
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            Text("ADD ALARM")
         }
     }
+}
+
+@Composable
+private fun alarmRow(
+    alarm: Alarm,
+    onToggle: (Boolean) -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth().testTag("alarmRow_${alarm.id}")) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    formatTime(alarm.hour, alarm.minute),
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.testTag("alarmTime_${alarm.id}"),
+                )
+                Text(
+                    repeatLabel(alarm),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("alarmRepeat_${alarm.id}"),
+                )
+                Text(
+                    "${alarm.requiredSteps} steps · ${soundLabel(alarm.soundSelection)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("alarmDetail_${alarm.id}"),
+                )
+            }
+            Switch(
+                checked = alarm.enabled,
+                onCheckedChange = onToggle,
+                modifier = Modifier.testTag("alarmSwitch_${alarm.id}"),
+            )
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier.testTag("editAlarm_${alarm.id}"),
+            ) {
+                Text("EDIT", style = MaterialTheme.typography.labelSmall)
+            }
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.testTag("deleteAlarm_${alarm.id}"),
+            ) {
+                Text("DEL", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun alarmEditorScreen(
+    ui: ChallengeViewModel,
+    existing: Alarm?,
+    onDone: () -> Unit,
+) {
+    val context = LocalContext.current
+    var hour by rememberSaveable { mutableStateOf(existing?.hour ?: 6) }
+    var minute by rememberSaveable { mutableStateOf(existing?.minute ?: 0) }
+    var repeatMode by rememberSaveable { mutableStateOf(existing?.repeatMode ?: AlarmRepeatMode.DAILY) }
+    var customDays by remember {
+        mutableStateOf<MutableSet<DayOfWeek>>(existing?.customDays?.toMutableSet() ?: mutableSetOf())
+    }
+    var onceDate by remember {
+        mutableStateOf<LocalDate>(existing?.onceDate ?: LocalDate.now(ZoneId.systemDefault()).plusDays(1))
+    }
+    var steps by rememberSaveable { mutableStateOf((existing?.requiredSteps ?: 500).toString()) }
+    var soundLabel by remember { mutableStateOf(soundOptionFor(existing?.soundSelection)) }
+    var customUri by rememberSaveable { mutableStateOf(customUriOf(existing?.soundSelection)) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     val customPicker =
         rememberLauncherForActivityResult(
@@ -145,7 +295,6 @@ private fun setupScreen(ui: ChallengeViewModel) {
                 )
                 customUri = uri.toString()
                 soundLabel = SoundOption.CUSTOM
-                ui.selectSound(SoundSelection.CustomFile(uri.toString()))
             }
         }
 
@@ -159,7 +308,7 @@ private fun setupScreen(ui: ChallengeViewModel) {
                 )
             if (uri != null) {
                 soundLabel = SoundOption.SYSTEM
-                ui.selectSound(SoundSelection.SystemRingtone(uri.toString()))
+                customUri = uri.toString()
             }
         }
 
@@ -168,27 +317,83 @@ private fun setupScreen(ui: ChallengeViewModel) {
             Modifier
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp)
-                .testTag("setupScreen"),
+                .testTag("alarmEditorScreen"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            "SISYPHUS",
-            style =
-                MaterialTheme.typography.headlineLarge.copy(
-                    letterSpacing = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                ),
-        )
+        appHeader()
+        sectionHeader(if (existing == null) "NEW STONE" else "THE STONE")
         Spacer(Modifier.height(8.dp))
-        Text(
-            "NO ESCAPE. WALK.",
-            style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 4.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(24.dp))
 
-        permissionSetupCard(ui)
+        sectionHeader("THE HOUR")
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = {
+                android.app.TimePickerDialog(
+                    context,
+                    { _, selectedHour, selectedMinute ->
+                        hour = selectedHour
+                        minute = selectedMinute
+                    },
+                    hour,
+                    minute,
+                    android.text.format.DateFormat.is24HourFormat(context),
+                ).show()
+            },
+            modifier = Modifier.testTag("timeField"),
+        ) {
+            Text(formatTime(hour, minute), modifier = Modifier.testTag("timeFieldLabel"))
+        }
+
+        Spacer(Modifier.height(24.dp))
+        sectionHeader("REPEAT")
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AlarmRepeatMode.entries.forEach { mode ->
+                FilterChip(
+                    selected = repeatMode == mode,
+                    onClick = { repeatMode = mode },
+                    label = { Text(repeatModeShortLabel(mode)) },
+                    modifier = Modifier.testTag("repeat_${mode.name.lowercase()}"),
+                )
+            }
+        }
+
+        if (repeatMode == AlarmRepeatMode.CUSTOM) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DayOfWeek.entries.forEach { day ->
+                    FilterChip(
+                        selected = day in customDays,
+                        onClick = {
+                            if (day in customDays) customDays.remove(day) else customDays.add(day)
+                        },
+                        label = { Text(day.name.take(2)) },
+                        modifier = Modifier.testTag("day_${day.name.lowercase()}"),
+                    )
+                }
+            }
+        }
+
+        if (repeatMode == AlarmRepeatMode.ONCE) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = {
+                    val now = LocalDate.now(ZoneId.systemDefault())
+                    android.app.DatePickerDialog(
+                        context,
+                        { _, year, month, day ->
+                            onceDate = LocalDate.of(year, month + 1, day)
+                        },
+                        onceDate.year,
+                        onceDate.monthValue - 1,
+                        onceDate.dayOfMonth,
+                    ).show()
+                },
+                modifier = Modifier.testTag("onceDateField"),
+            ) {
+                Text(onceDate.toString(), modifier = Modifier.testTag("onceDateLabel"))
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
         sectionHeader("THE STONE")
@@ -212,27 +417,6 @@ private fun setupScreen(ui: ChallengeViewModel) {
         )
 
         Spacer(Modifier.height(24.dp))
-        sectionHeader("THE HOUR")
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = {
-                android.app.TimePickerDialog(
-                    context,
-                    { _, selectedHour, selectedMinute ->
-                        hour = selectedHour
-                        minute = selectedMinute
-                    },
-                    hour,
-                    minute,
-                    android.text.format.DateFormat.is24HourFormat(context),
-                ).show()
-            },
-            modifier = Modifier.testTag("timeField"),
-        ) {
-            Text(formatTime(hour, minute), modifier = Modifier.testTag("timeFieldLabel"))
-        }
-
-        Spacer(Modifier.height(24.dp))
         sectionHeader("THE SOUND")
         Spacer(Modifier.height(8.dp))
         SoundOption.entries.forEach { option ->
@@ -246,7 +430,7 @@ private fun setupScreen(ui: ChallengeViewModel) {
                             onClick = {
                                 soundLabel = option
                                 when (option) {
-                                    SoundOption.BUNDLED -> ui.selectSound(SoundSelection.Bundled)
+                                    SoundOption.BUNDLED -> customUri = null
                                     SoundOption.SYSTEM ->
                                         ringtonePicker.launch(
                                             Intent(
@@ -291,19 +475,39 @@ private fun setupScreen(ui: ChallengeViewModel) {
                     when {
                         stepsValue == null -> "Enter a step requirement."
                         stepsValue < 1 || stepsValue > 10000 -> "Steps must be between 1 and 10000."
+                        repeatMode == AlarmRepeatMode.CUSTOM && customDays.isEmpty() ->
+                            "Choose at least one day."
                         else -> null
                     }
                 if (error == null) {
-                    runCatching {
-                        ui.configureAlarm(stepsValue!!, hour, minute)
-                    }.onFailure {
-                        error = it.message ?: "Could not arm the alarm."
+                    val spec =
+                        AlarmSpec(
+                            hour = hour,
+                            minute = minute,
+                            repeatMode = repeatMode,
+                            customDays = customDays.toSet(),
+                            requiredSteps = stepsValue!!,
+                            soundSelection = soundSelectionFor(soundLabel, customUri),
+                            enabled = existing?.enabled ?: true,
+                            onceDate = if (repeatMode == AlarmRepeatMode.ONCE) onceDate else null,
+                        )
+                    if (existing == null) {
+                        ui.addAlarm(spec)
+                    } else {
+                        ui.updateAlarm(existing.id, spec)
                     }
+                    onDone()
                 }
             },
             modifier = Modifier.testTag("saveAlarm"),
         ) {
-            Text("ARM ALARM")
+            Text(if (existing == null) "ADD ALARM" else "SAVE ALARM")
+        }
+        TextButton(
+            onClick = onDone,
+            modifier = Modifier.testTag("cancelEditor"),
+        ) {
+            Text("BACK")
         }
     }
 }
@@ -628,6 +832,56 @@ private enum class SoundOption(val label: String) {
     SYSTEM("System ringtone"),
     CUSTOM("Custom audio file"),
 }
+
+private fun soundOptionFor(selection: SoundSelection?): SoundOption =
+    when (selection) {
+        null, SoundSelection.Bundled -> SoundOption.BUNDLED
+        is SoundSelection.SystemRingtone -> SoundOption.SYSTEM
+        is SoundSelection.CustomFile -> SoundOption.CUSTOM
+    }
+
+private fun customUriOf(selection: SoundSelection?): String? =
+    when (selection) {
+        is SoundSelection.SystemRingtone -> selection.uri
+        is SoundSelection.CustomFile -> selection.uri
+        else -> null
+    }
+
+private fun soundSelectionFor(
+    option: SoundOption,
+    uri: String?,
+): SoundSelection =
+    when (option) {
+        SoundOption.BUNDLED -> SoundSelection.Bundled
+        SoundOption.SYSTEM -> SoundSelection.SystemRingtone(uri.orEmpty())
+        SoundOption.CUSTOM -> SoundSelection.CustomFile(uri.orEmpty())
+    }
+
+private fun soundLabel(selection: SoundSelection): String =
+    when (selection) {
+        SoundSelection.Bundled -> "bundled"
+        is SoundSelection.SystemRingtone -> "system"
+        is SoundSelection.CustomFile -> "custom"
+    }
+
+private fun repeatModeShortLabel(mode: AlarmRepeatMode): String =
+    when (mode) {
+        AlarmRepeatMode.ONCE -> "Once"
+        AlarmRepeatMode.DAILY -> "Daily"
+        AlarmRepeatMode.WEEKDAYS -> "Weekdays"
+        AlarmRepeatMode.WEEKENDS -> "Weekends"
+        AlarmRepeatMode.CUSTOM -> "Custom"
+    }
+
+private fun repeatLabel(alarm: Alarm): String =
+    when (alarm.repeatMode) {
+        AlarmRepeatMode.ONCE -> "Once · ${alarm.onceDate ?: ""}"
+        AlarmRepeatMode.DAILY -> "Every day"
+        AlarmRepeatMode.WEEKDAYS -> "Weekdays"
+        AlarmRepeatMode.WEEKENDS -> "Weekends"
+        AlarmRepeatMode.CUSTOM ->
+            alarm.customDays.sortedBy { it.value }.joinToString(", ") { it.name.take(3) }
+    }
 
 private fun formatTime(
     hour: Int,

@@ -6,6 +6,8 @@ import androidx.lifecycle.AndroidViewModel
 import kotlinx.coroutines.flow.StateFlow
 import org.sisyphus.android.SisyphusApp
 import org.sisyphus.android.service.SisyphusService
+import org.sisyphus.core.alarm.Alarm
+import org.sisyphus.core.alarm.AlarmSpec
 import org.sisyphus.core.challenge.ChallengeState
 import org.sisyphus.core.engine.ChallengeViewState
 import org.sisyphus.core.settings.SoundSelection
@@ -18,12 +20,47 @@ class ChallengeViewModel(app: Application) : AndroidViewModel(app) {
 
     val state: StateFlow<ChallengeViewState> = graph.engineState
 
+    val alarmsState: StateFlow<List<Alarm>> = graph.alarmsState
+
     val availableActions: Set<UiAction> get() = graph.availableActions()
 
     var challengeError: String? = null
         private set
 
+    val alarms: List<Alarm> get() = engine.alarms()
+
     fun refresh() = graph.publishState()
+
+    fun addAlarm(spec: AlarmSpec) {
+        challengeError = null
+        engine.addAlarm(spec)
+        refresh()
+    }
+
+    fun updateAlarm(
+        id: String,
+        spec: AlarmSpec,
+    ) {
+        challengeError = null
+        engine.updateAlarm(id, spec)
+        refresh()
+    }
+
+    fun deleteAlarm(id: String) {
+        challengeError = null
+        engine.deleteAlarm(id)
+        stopTracking()
+        refresh()
+    }
+
+    fun setAlarmEnabled(
+        id: String,
+        enabled: Boolean,
+    ) {
+        challengeError = null
+        engine.setAlarmEnabled(id, enabled)
+        refresh()
+    }
 
     fun configureAlarm(
         steps: Int,

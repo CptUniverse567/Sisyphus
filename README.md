@@ -2,7 +2,7 @@
 
 > **NO ESCAPE. WALK.**
 
-Sisyphus is a minimalist Android alarm app that requires you to physically walk a configurable number of steps before the alarm can be silenced.
+Sisyphus is an open-source, minimalist Android alarm app that requires you to physically walk a configurable number of steps before the alarm can be silenced.
 
 It is deliberately simple: when the alarm rings, there is no snooze and no conventional stop button. The only way forward is to walk.
 
@@ -18,9 +18,13 @@ It is deliberately simple: when the alarm rings, there is no snooze and no conve
   * **Weekends**
   * **Custom** weekday subset
 * Per-alarm step requirements and sounds (v1.1)
-* Next-occurrence calculation and missed-occurrence skipping (v1.1)
+* Independent alarm configuration (time, repeat schedule, steps, sound, enabled) (v1.1)
+* Recurring scheduling with next-occurrence calculation (v1.1)
+* Missed-occurrence behavior: skipped, never fired late (v1.1)
+* Reboot recovery: enabled alarms reschedule to their next valid occurrence (v1.1)
 * Alarm editing, rescheduling, and deletion (v1.1)
 * Fresh challenge per occurrence; no progress carries between occurrences (v1.1)
+* Step-powered challenge: physically walk the required steps to silence the alarm
 * Native Android time picker
 * Configurable step requirement
 * Step presets:
@@ -240,6 +244,11 @@ The current release focuses on doing one thing well:
 
 > **When the alarm rings, get up and walk.**
 
+## Open Source
+
+Sisyphus is open source, released under the **MIT License**. See the `LICENSE` file for the full
+license text.
+
 ## License
 
-License information has not yet been defined.
+MIT License — see `LICENSE`. Copyright (c) 2026 Captain Universe.

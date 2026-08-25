@@ -4,18 +4,29 @@
 
 Everything below that can run without a physical device runs automatically in this repository.
 
-## Release candidate — Sisyphus v1.1.0
+## Release — Sisyphus v1.1.0 (signed FOSS release)
 
-**Sisyphus v1.1.0** — multiple independent alarms, release candidate (2026-08).
+**Sisyphus v1.1.0** — multiple independent alarms, signed FOSS release (2026-08).
 
 - Unit tests: **213/213 PASS** (190 core JVM + 23 app Robolectric)
 - ktlint: **PASS**
 - Gradle build: **PASS**
+- Release signing: **PASS** (locally signed; keystore/properties git-ignored, not committed)
 - Instrumentation (emulator): **UiFlow 6/6, DeviceGate 3/3** (sensor-dependent tests skipped on
   emulator via `assumeTrue`; the two setup-flow tests exercise the new alarm editor)
-- Physical-device gate: **pending for v1.1** (prior v1.0 gate: Samsung Galaxy S25 / API 36)
+- **v1.1 physical-device validation: NOT performed.** No physical device was used for v1.1.
+- **v1.0 physical baseline remains authoritative:** Samsung Galaxy S25 (SM-S721B) / API 36,
+  9/9 instrumentation + 12/12 manual walk-through (2026-08-11).
 
-> v1.0 release candidate — 173/173 unit tests (150 core + 23 app), 9/9 instrumentation on device.
+### Validation summary (v1.1.0)
+
+| Validation type | Result |
+|---|---|
+| Automated unit/Robolectric | **213/213 PASS** |
+| ktlint / build | **PASS** |
+| Emulator instrumentation | UiFlow 6/6, DeviceGate 3/3 (hardware-dependent tests skipped on emulator) |
+| v1.0 physical baseline (Samsung Galaxy S25 / API 36) | **PASSED (2026-08-11)** |
+| v1.1 physical-device validation | **NOT PERFORMED** |
 
 ## How to run everything
 
@@ -194,15 +205,17 @@ The `:app` module is fully implemented and compiles to a debug APK:
 ## Final status
 
 ```text
-BUILD: PASS                    assembleDebug + assembleDebugAndroidTest
+BUILD: PASS                    assembleDebug + assembleDebugAndroidTest + assembleRelease
 UNIT TESTS: PASS               213/213 (190 core + 23 app)
 LINT/STATIC ANALYSIS: PASS     ktlintCheck
+RELEASE SIGNING: PASS          local signed release (keystore git-ignored)
 CORE STATE MACHINE: VERIFIED   StateMachineTest + ChallengeCalculationTest
 PERSISTENCE: VERIFIED          PersistenceTest + AlarmRepositoryTest
 ALARM LOGIC: VERIFIED          AlarmScheduleTest + AlarmRecurrenceCalculatorTest
 MULTI-ALARM: VERIFIED          MultiAlarmEngineTest
 STEP ACCOUNTING: VERIFIED      StepAccountingTest + PreDeviceFailureInjectionTest
-PHYSICAL DEVICE GATE: PENDING  v1.1 — prior v1.0 gate passed on Samsung Galaxy S25, API 36
+PHYSICAL DEVICE GATE (v1.0):   PASSED Samsung Galaxy S25, API 36 (2026-08-11)
+PHYSICAL DEVICE GATE (v1.1):   NOT PERFORMED (automated/emulator validation only)
 ```
 
 ## Phase 10 — Physical device gate (PASSED 2026-08-11)

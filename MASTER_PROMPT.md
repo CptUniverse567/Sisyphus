@@ -166,6 +166,13 @@ Android permissions/manifest: `POST_NOTIFICATIONS`, `ACTIVITY_RECOGNITION`, `SCH
   **Completion** ("THE STONE HAS FALLEN.").
 - Jetpack Compose. Minimalist. The remaining step count is the primary focus during a challenge.
 - UI renders `ChallengeViewState` snapshots; never holds source-of-truth state.
+- **Native Android time picker** is used for alarm time selection (no custom picker). The UI test
+  helper is **mode-aware**: it must handle both 24-hour and 12-hour (AM/PM) formats because devices
+  like the Samsung S25 (24-hour) expose no `android:id/am_pm_spinner`. The picker has no text fields
+  for hour/minute.
+- **Phase 11 UI implementation** (Compose): `MainActivity` + `SisyphusScreens` render the Compose
+  UI via a `ChallengeViewModel` that collects engine `ChallengeViewState` snapshots. The Activity
+  refreshes and resumes/ stops step tracking on resume/pause but is never the source of truth.
 
 ## 11. Testing philosophy and requirements
 
@@ -245,6 +252,8 @@ used for the implementation, not merely a summary afterward.
 - **Sisyphus v1.0.0** — MVP complete and physically validated (2026-08-11).
 - Feature: single alarm, configurable steps, step presets, custom sounds, full-screen alarm,
   persistent challenge progress, back-button protection, immediate termination, reboot recovery.
+- **Phase 10** (physical-device gate) and **Phase 11** (final UI implementation) both PASSED on the
+  Samsung Galaxy S25 / API 36.
 - **Current phase: v1.1 — Multiple Alarms** (see `docs/prompts/SISYPHUS_V1.1_MULTIPLE_ALARMS.md`).
 
 ## 16. Prompt history
